@@ -1,41 +1,99 @@
 from flask import Flask, request, Response, json
-import numpy as numpy
+import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import OneHotEncoder
+from scipy.sparse import hstack
+import joblib
 
-#load data
-df = pd.read_csv("./carData/car.data", header = None, names=['buying', 'maint', 'doors', 'persons', 'lug_boot', 'safety', 'eval'])
-X = df.iloc[:, :-1].values
-y = df.iloc[:, -1].values
+# -----------------------------
+# 1. LOAD & PREPARE DATA
+# -----------------------------
+df = pd.read_csv(
+    "./studentData/students.csv",
+    header=0,
+    names=[
+        'course', 'sneeds', 'debtor', 'tuition', 'gender', 'scholarship',
+        'age', 'international', 'first_enrolled', 'first_approved',
+        'second_enrolled', 'second_approved', 'target'
+    ]
+)
 
-#create onehotencoder and transform data
-onehotencoder = OneHotEncoder(handle_unknown='ignore')
-ohc = onehotencoder.fit(X)
-X = ohc.transform(X)
+y = df['target']
 
-#train model
-rfc = RandomForestClassifier(n_estimators=100)
-rfc.fit(X, y)
+# Define column groups
+numeric_cols = ['age', 'first_enrolled', 'first_approved', 'second_enrolled', 'second_approved']
+categoric_cols = ['course', 'sneeds', 'debtor', 'tuition', 'gender', 'scholarship', 'international']
 
-#create flask instance
+numeric_df = df[numeric_cols]
+categoric_df = df[categoric_cols]
+
+# -----------------------------
+# 2. SCALE NUMERIC FEATURES
+# -----------------------------
+scaler = StandardScaler()
+numeric_scaled = scaler.fit_transform(numeric_df)
+
+# -----------------------------
+# 3. ONE-HOT ENCODE CATEGORICAL FEATURES
+# -----------------------------
+encoder = OneHotEncoder(handle_unknown='ignore')
+categoric_encoded = encoder.fit_transform(categoric_df)
+
+# -----------------------------
+# 4. COMBINE FEATURES
+# -----------------------------
+X_final = hstack([categoric_encoded, numeric_scaled])
+
+# -----------------------------
+# 5. TRAIN MODEL
+# -----------------------------
+model = RandomForestClassifier(n_estimators=100)
+model.fit(X_final, y)
+
+# -----------------------------
+# 6. SAVE PREPROCESSORS + MODEL
+# -----------------------------
+joblib.dump(model, "model.pkl")
+joblib.dump(encoder, "encoder.pkl")
+joblib.dump(scaler, "scaler.pkl")
+
+# -----------------------------
+# 7. FLASK APP
+# -----------------------------
 app = Flask(__name__)
 
-#create api
-@app.route('/api', methods=['GET', 'POST'])
-def predict(): 
-    #get the data from request
+@app.route('/api', methods=['POST'])
+def predict():
     data = request.get_json(force=True)
-    requestData = numpy.array([data["buying"], data["maint"], data["doors"], data["persons"], data["lug_boot"], data["safety"]])
-    requestData = numpy.reshape(requestData, (1, -1))
-    
-    #get onehotencoding for input_data
-    requestData = ohc.transform(requestData) 
-    
-    #Make prediction using model
-    prediction = rfc.predict(requestData)
-    return Response(json.dumps(prediction[0]))
+
+    # Extract in correct order
+    categoric_input = np.array([
+        data["course"], data["sneeds"], data["debtor"], data["tuition"],
+        data["gender"], data["scholarship"], data["international"]
+    ]).reshape(1, -1)
+
+    numeric_input = np.array([
+        data["age"], data["first_enrolled"], data["first_approved"],
+        data["second_enrolled"], data["second_approved"]
+    ]).reshape(1, -1)
+
+    # Load preprocessors + model
+    encoder = joblib.load("encoder.pkl")
+    scaler = joblib.load("scaler.pkl")
+    model = joblib.load("model.pkl")
+
+    # Transform inputs
+    categoric_encoded = encoder.transform(categoric_input)
+    numeric_scaled = scaler.transform(numeric_input)
+
+    # Combine
+    X_request = hstack([categoric_encoded, numeric_scaled])
+
+    # Predict
+    prediction = model.predict(X_request)
+
+    return Response(json.dumps(int(prediction[0])))
 
 if __name__ == '__main__':
     app.run()
