@@ -1,65 +1,38 @@
 from flask import Flask, request, Response, json
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-from scipy.sparse import hstack
 import joblib
 
 # -----------------------------
 # 1. LOAD & PREPARE DATA
 # -----------------------------
-df = pd.read_csv(
-    "./studentData/students.csv",
-    header=0,
-    names=[
-        'course', 'sneeds', 'debtor', 'tuition', 'gender', 'scholarship',
-        'age', 'international', 'first_enrolled', 'first_approved',
-        'second_enrolled', 'second_approved', 'target'
-    ]
-)
+df = pd.read_csv("./studentData/students.csv")
 
-y = df['target']
+# Separate features and target
+X = df.drop(columns=['Target'])
+y = df['Target']
 
-# Define column groups
-numeric_cols = ['age', 'first_enrolled', 'first_approved', 'second_enrolled', 'second_approved']
-categoric_cols = ['course', 'sneeds', 'debtor', 'tuition', 'gender', 'scholarship', 'international']
+# Encode target labels
+label_encoder = LabelEncoder()
+y_encoded = label_encoder.fit_transform(y)
 
-numeric_df = df[numeric_cols]
-categoric_df = df[categoric_cols]
-
-# -----------------------------
-# 2. SCALE NUMERIC FEATURES
-# -----------------------------
+# Scale numeric features
 scaler = StandardScaler()
-numeric_scaled = scaler.fit_transform(numeric_df)
+X_scaled = scaler.fit_transform(X)
 
-# -----------------------------
-# 3. ONE-HOT ENCODE CATEGORICAL FEATURES
-# -----------------------------
-encoder = OneHotEncoder(handle_unknown='ignore')
-categoric_encoded = encoder.fit_transform(categoric_df)
-
-# -----------------------------
-# 4. COMBINE FEATURES
-# -----------------------------
-X_final = hstack([categoric_encoded, numeric_scaled])
-
-# -----------------------------
-# 5. TRAIN MODEL
-# -----------------------------
+# Train model
 model = RandomForestClassifier(n_estimators=100)
-model.fit(X_final, y)
+model.fit(X_scaled, y_encoded)
 
-# -----------------------------
-# 6. SAVE PREPROCESSORS + MODEL
-# -----------------------------
+# Save model + scaler + label encoder
 joblib.dump(model, "model.pkl")
-joblib.dump(encoder, "encoder.pkl")
 joblib.dump(scaler, "scaler.pkl")
+joblib.dump(label_encoder, "label_encoder.pkl")
 
 # -----------------------------
-# 7. FLASK APP
+# 2. FLASK APP
 # -----------------------------
 app = Flask(__name__)
 
@@ -67,33 +40,35 @@ app = Flask(__name__)
 def predict():
     data = request.get_json(force=True)
 
-    # Extract in correct order
-    categoric_input = np.array([
-        data["course"], data["sneeds"], data["debtor"], data["tuition"],
-        data["gender"], data["scholarship"], data["international"]
-    ]).reshape(1, -1)
-
-    numeric_input = np.array([
-        data["age"], data["first_enrolled"], data["first_approved"],
-        data["second_enrolled"], data["second_approved"]
+    # Extract numeric features in correct order (matching your CSV)
+    input_data = np.array([
+        data["course"],
+        data["sneeds"],
+        data["debtor"],
+        data["tuition"],
+        data["gender"],
+        data["scholarship"],
+        data["age"],
+        data["international"],
+        data["first_enrolled"],
+        data["first_approved"],
+        data["second_enrolled"],
+        data["second_approved"]
     ]).reshape(1, -1)
 
     # Load preprocessors + model
-    encoder = joblib.load("encoder.pkl")
     scaler = joblib.load("scaler.pkl")
     model = joblib.load("model.pkl")
+    label_encoder = joblib.load("label_encoder.pkl")
 
-    # Transform inputs
-    categoric_encoded = encoder.transform(categoric_input)
-    numeric_scaled = scaler.transform(numeric_input)
-
-    # Combine
-    X_request = hstack([categoric_encoded, numeric_scaled])
+    # Scale input
+    input_scaled = scaler.transform(input_data)
 
     # Predict
-    prediction = model.predict(X_request)
+    prediction = model.predict(input_scaled)
+    result = label_encoder.inverse_transform(prediction)[0]
 
-    return Response(json.dumps(int(prediction[0])))
+    return Response(json.dumps(result))
 
 if __name__ == '__main__':
     app.run()
