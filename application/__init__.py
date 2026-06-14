@@ -36,7 +36,7 @@ joblib.dump(label_encoder, "label_encoder.pkl")
 # -----------------------------
 app = Flask(__name__)
 
-@app.route('/api', methods=['POST'])
+@app.route('/api', methods=['GET','POST'])
 def predict():
     data = request.get_json(force=True)
 
