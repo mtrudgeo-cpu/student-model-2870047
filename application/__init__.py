@@ -66,8 +66,17 @@ def predict():
 
     # Predict
     prediction = model.predict(input_scaled)
-    result = label_encoder.inverse_transform(prediction)[0]
+    original_label = label_encoder.inverse_transform(prediction)[0]
 
+    #Map names
+    label_map = {
+    "Dropout": "High Risk",
+    "Enrolled": "Medium Risk",
+    "Graduate": "Low Risk"
+    }
+    
+    # Convert model output to your custom label
+    result = label_map.get(original_label, original_label)
     return Response(json.dumps(result))
 
 if __name__ == '__main__':
