@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix
 import joblib
 
 # -----------------------------
@@ -22,14 +24,37 @@ y_encoded = label_encoder.fit_transform(y)
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
-# Train model
-model = RandomForestClassifier(n_estimators=100)
-model.fit(X_scaled, y_encoded)
+# Train model 1: Random Forest
+rf = RandomForestClassifier(n_estimators=100)
+rf.fit(X_scaled, y_encoded)
 
-# Save model + scaler + label encoder
-joblib.dump(model, "model.pkl")
+# Train model 2: KNN
+knn = KNeighborsClassifier(n_neighbors=5)
+knn.fit(X_scaled, y_encoded)
+
+ # Model_Evaluation 
+rf_pred = rf.predict(X_scaled)
+knn_pred = knn.predict(X_scaled)
+rf_acc = accuracy_score(y_encoded, rf_pred)
+knn_acc = accuracy_score(y_encoded, knn_pred)
+
+print("Random Forest Accuracy:", rf_acc)
+print("KNN Accuracy:", knn_acc)
+
+# Confusion matrices
+print("Random Forest Confusion Matrix:")
+print(confusion_matrix(y_encoded, rf_pred))
+
+print("KNN Confusion Matrix:")
+print(confusion_matrix(y_encoded, knn_pred))
+
+
+# Save models + scaler + label encoder
+joblib.dump(rf, "model.pkl")
+joblib.dump(knn, "knn_model.pkl")
 joblib.dump(scaler, "scaler.pkl")
 joblib.dump(label_encoder, "label_encoder.pkl")
+
 
 # -----------------------------
 # 2. FLASK APP
@@ -56,15 +81,22 @@ def predict():
         data["second_approved"]
     ]).reshape(1, -1)
 
-    # Load preprocessors + model
+    # Load preprocessors 
     scaler = joblib.load("scaler.pkl")
-    model = joblib.load("model.pkl")
     label_encoder = joblib.load("label_encoder.pkl")
 
     # Scale input
     input_scaled = scaler.transform(input_data)
 
-    # Predict
+    #Choose model (default=random forest)
+    model_choice = data.get("model", "rf")
+
+    if model_choice == "knn":
+        model=joblib.load("knn_model.pkl")
+    else:
+        model=joblib.load("model.pkl")
+
+    # Predictions
     prediction = model.predict(input_scaled)
     original_label = label_encoder.inverse_transform(prediction)[0]
 
