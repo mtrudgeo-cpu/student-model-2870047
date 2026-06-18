@@ -64,21 +64,22 @@ app = Flask(__name__)
 @app.route('/api', methods=['GET','POST'])
 def predict():
     data = request.get_json(force=True)
+   # print("RAW DATA RECEIVED:", data) 
 
     # Extract numeric features in correct order (matching your CSV)
     input_data = np.array([
-        data["course"],
-        data["sneeds"],
-        data["debtor"],
-        data["tuition"],
-        data["gender"],
-        data["scholarship"],
-        data["age"],
-        data["international"],
-        data["first_enrolled"],
-        data["first_approved"],
-        data["second_enrolled"],
-        data["second_approved"]
+        int(data["course"]),
+        int(data["sneeds"]),
+        int(data["debtor"]),
+        int(data["tuition"]),
+        int(data["gender"]),
+        int(data["scholarship"]),
+        int(data["age"]),
+        int(data["international"]),
+        int(data["first_enrolled"]),
+        int(data["first_approved"]),
+        int(data["second_enrolled"]),
+        int(data["second_approved"])
     ]).reshape(1, -1)
 
     # Load preprocessors 
