@@ -5,6 +5,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.model_selection import train_test_split
 import joblib
 
 # -----------------------------
@@ -20,33 +21,40 @@ y = df['Target']
 label_encoder = LabelEncoder()
 y_encoded = label_encoder.fit_transform(y)
 
+# Split BEFORE scaling (best practice)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
+)
+
 # Scale numeric features
 scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
 # Train model 1: Random Forest
 rf = RandomForestClassifier(n_estimators=100)
-rf.fit(X_scaled, y_encoded)
+rf.fit(X_train_scaled, y_train)
 
 # Train model 2: KNN
 knn = KNeighborsClassifier(n_neighbors=5)
-knn.fit(X_scaled, y_encoded)
+knn.fit(X_train_scaled, y_train)
 
  # Model_Evaluation 
-rf_pred = rf.predict(X_scaled)
-knn_pred = knn.predict(X_scaled)
-rf_acc = accuracy_score(y_encoded, rf_pred)
-knn_acc = accuracy_score(y_encoded, knn_pred)
+rf_pred = rf.predict(X_test_scaled)
+knn_pred = knn.predict(X_test_scaled)
+
+rf_acc = accuracy_score(y_test, rf_pred)
+knn_acc = accuracy_score(y_test, knn_pred)
 
 print("Random Forest Accuracy:", rf_acc)
 print("KNN Accuracy:", knn_acc)
 
 # Confusion matrices
-print("Random Forest Confusion Matrix:")
-print(confusion_matrix(y_encoded, rf_pred))
+print("\nRandom Forest Confusion Matrix:")
+print(confusion_matrix(y_test, rf_pred))
 
-print("KNN Confusion Matrix:")
-print(confusion_matrix(y_encoded, knn_pred))
+print("\nKNN Confusion Matrix:")
+print(confusion_matrix(y_test, knn_pred))
 
 
 # Save models + scaler + label encoder
